@@ -26,7 +26,21 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRAPER_SKILL = REPO_ROOT / ".claude" / "skills" / "job-scraper" / "SKILL.md"
-PORTAL_CLIS = sorted((REPO_ROOT / ".agents" / "skills").glob("*-search"))
+ALL_PORTAL_SKILLS = sorted((REPO_ROOT / ".agents" / "skills").glob("*-search"))
+
+# A portal skill may cover its market through Step 1c's WebSearch fallback
+# instead of a CLI, and says so in its frontmatter. The search-output contract
+# below is about CLI output, so those are out of its scope - but only when the
+# declaration is there: a missing CLI with no declaration stays a failure.
+_WEBSEARCH_ONLY = re.compile(r"^mechanism:\s*websearch\s*(#.*)?$", re.MULTILINE)
+
+
+def is_websearch_only(portal: Path) -> bool:
+    skill = portal / "SKILL.md"
+    return skill.is_file() and bool(_WEBSEARCH_ONLY.search(skill.read_text(encoding="utf-8")))
+
+
+PORTAL_CLIS = [p for p in ALL_PORTAL_SKILLS if not is_websearch_only(p)]
 
 # Derived, never copied: a hardcoded field list drifts in lockstep with
 # nothing - if Step 2's prose drops or adds a field, the known-good portals

@@ -10,6 +10,7 @@ audit that finds both failure classes in an existing file.
 import json
 import subprocess
 import sys
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -69,6 +70,119 @@ class MakeKey(unittest.TestCase):
         key = make_key("Код Безопасности", "Malware Analytic", url="")
         self.assertTrue(is_canonical(key))
         self.assertFalse(key.startswith("_"))
+
+
+class NonLatinKeysStayDistinctAndStable(unittest.TestCase):
+    """A non-Latin posting must still get a key of its own.
+
+    `slugify` drops every non-ASCII character, so before this fix two different
+    Korean employers collapsed onto the same key: make_key("카카오", "개발자",
+    <url with id 123456>) and make_key("네이버", "개발자", <same id>) both
+    produced "unknown-company_123456" - one entry for two companies, which is
+    the exact dedup failure the key function exists to prevent.
+
+    The key itself stays ASCII: it doubles as the archive folder stem that
+    `/apply` and `/outcome` derive, so Hangul never enters it. Distinctness
+    comes from a hash of the NFC-normalized original text instead.
+    """
+
+    def test_two_korean_companies_do_not_collapse_onto_one_key(self):
+        kakao = make_key("카카오", "개발자", url="https://kr.example.com/jobs/123456")
+        naver = make_key("네이버", "개발자", url="https://kr.example.com/jobs/123456")
+        self.assertNotEqual(kakao, naver)
+        self.assertTrue(is_canonical(kakao) and is_canonical(naver))
+        self.assertNotIn("unknown-company", kakao)
+
+    def test_two_korean_titles_at_one_company_do_not_collapse(self):
+        a = make_key("카카오", "백엔드 개발자", url="")
+        b = make_key("카카오", "프론트엔드 개발자", url="")
+        self.assertNotEqual(a, b)
+
+    def test_a_key_survives_nfc_nfd_normalization_differences(self):
+        """Portals ship both forms of Hangul; the same posting must key the
+        same way whichever form this run happened to receive."""
+        composed_company = unicodedata.normalize("NFC", "카카오")
+        decomposed_company = unicodedata.normalize("NFD", "카카오")
+        composed_title = unicodedata.normalize("NFC", "백엔드 개발자")
+        decomposed_title = unicodedata.normalize("NFD", "백엔드 개발자")
+        self.assertNotEqual(decomposed_company, composed_company)
+        self.assertEqual(
+            make_key(composed_company, composed_title),
+            make_key(decomposed_company, decomposed_title),
+        )
+
+    def test_mixed_script_names_keep_their_non_latin_differentiator(self):
+        """The sharper form of the same bug: a *surviving* Latin remnant hid it.
+
+        slugify("회사A") is "a", not "", so the empty-slug fallback never fired
+        and make_key("회사A", ...) and make_key("다른A", ...) both produced
+        "a_123456" - two companies, one key again. Whenever transliteration
+        drops non-Latin characters, the slug is disambiguated by a hash of the
+        original text, so what the ASCII slug cannot carry is still in the key.
+        """
+        url = "https://example.test/jobs/123456"
+        a = make_key("회사A", "백엔드 개발자", url)
+        b = make_key("다른A", "백엔드 개발자", url)
+        self.assertNotEqual(a, b)
+        self.assertTrue(is_canonical(a) and is_canonical(b))
+        self.assertTrue(a.startswith("a-"), f"the readable Latin remnant is kept, not discarded: {a}")
+
+    def test_mixed_script_titles_stay_distinct_too(self):
+        a = make_key("Acme", "백엔드 개발자 (Backend)")
+        b = make_key("Acme", "프론트엔드 개발자 (Backend)")
+        self.assertNotEqual(a, b)
+        self.assertTrue(is_canonical(a))
+
+    def test_mixed_script_keys_are_stable_across_nfc_and_nfd(self):
+        for company, title in (("회사A", "백엔드 개발자 (Backend)"), ("Acme", "개발자 Developer")):
+            composed = make_key(unicodedata.normalize("NFC", company), unicodedata.normalize("NFC", title))
+            decomposed = make_key(unicodedata.normalize("NFD", company), unicodedata.normalize("NFD", title))
+            self.assertEqual(composed, decomposed, f"{company}/{title} keyed differently by normal form")
+
+    def test_compatibility_forms_the_slug_already_carries_are_not_lost(self):
+        """The differentiator test has to use the same normal form the slug does.
+
+        `slugify` runs NFKD, which turns ＮＨＮ into "NHN" and Ⅲ into "III", so
+        nothing is lost - but the test ran NFC, saw characters named FULLWIDTH…
+        and ROMAN NUMERAL…, judged them non-Latin and appended a hash. One
+        employer then keyed two ways depending on which form the portal emitted:
+        "nhn-4ee04c_backend-engineer" vs "nhn_backend-engineer".
+        """
+        self.assertEqual(make_key("ＮＨＮ", "Backend Engineer"), make_key("NHN", "Backend Engineer"))
+        self.assertEqual(make_key("Acme", "Engineer Ⅲ"), make_key("Acme", "Engineer III"))
+        self.assertEqual(make_key("NHN", "Backend Engineer"), "nhn_backend-engineer")
+
+    def test_compatibility_folding_does_not_flatten_the_hangul_distinction(self):
+        """The fix must not weaken the mixed-script case it sits next to."""
+        self.assertNotEqual(make_key("회사A", "개발자"), make_key("다른A", "개발자"))
+        self.assertNotEqual(
+            make_key("㈜카카오", "Backend Engineer"),
+            make_key("Acme", "Backend Engineer"),
+            "NFKC expands ㈜ to (주), which is still Hangul and still a differentiator",
+        )
+
+    def test_latin_script_diacritics_are_not_a_lost_differentiator(self):
+        """ø, ß and é are Latin script: they already transliterate, and hashing
+        them would change the key of every existing Danish and German entry."""
+        self.assertEqual(make_key("Søborg Data", "Udvikler"), "sborg-data_udvikler")
+        self.assertEqual(make_key("Straße GmbH", "Entwickler"), "strae-gmbh_entwickler")
+        self.assertEqual(make_key("Café Nord", "Barista"), "cafe-nord_barista")
+
+    def test_the_key_stays_ascii_and_path_safe(self):
+        for company, title in (("카카오", "백엔드 개발자"), ("회사A", "백엔드 개발자 (Backend)")):
+            key = make_key(company, title, url="")
+            self.assertEqual(key, key.encode("ascii", "ignore").decode("ascii"))
+
+    def test_latin_keys_are_byte_for_byte_what_they_were(self):
+        """Backward compatibility: an existing state file must keep matching."""
+        self.assertEqual(make_key("Acme Corp", "SOC Analyst (L2)"), "acme-corp_soc-analyst-l2")
+        self.assertEqual(make_key("Ops Consulting, LLC", "Malware Analyst"), "ops-consulting-llc_malware-analyst")
+        self.assertEqual(
+            make_key("SecuriON", "안드로이드 앱(악성코드) 분석가 채용",
+                     url="https://kr.linkedin.com/jobs/view/x-4461771225"),
+            "securion_4461771225",
+        )
+        self.assertEqual(make_key("", "Malware Analyst"), "unknown-company_malware-analyst")
 
 
 class CanonicalAndLegacyShape(unittest.TestCase):

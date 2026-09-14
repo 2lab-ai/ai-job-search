@@ -1,10 +1,10 @@
 ---
-framework_version: 1.0.0
+framework_version: 1.1.0
 ---
 
 # Application Form Fields
 
-`/apply` produces two artifacts: a CV and a cover letter. Many applications need a **third** — free-text fields typed directly into an application portal. Graduate programs, large-employer ATS systems and startup forms routinely ask for things neither document covers, under a character or word limit, in a box with no formatting.
+`/apply` produces two **document types**: a CV and a cover letter. A multi-language bundle writes one file of each type per language, so the file count grows while the count of types does not. Many applications need a **third type** — free-text fields typed directly into an application portal. Graduate programs, large-employer ATS systems and startup forms routinely ask for things neither document covers, under a character or word limit, in a box with no formatting.
 
 This file governs that third artifact. It is not a document you compile; it is text the candidate pastes.
 
@@ -69,6 +69,8 @@ Prefer the version that **maps the candidate's problem onto the employer's probl
 ## Output format
 
 Save to a plain `.txt` file the candidate can copy from, alongside their other application material for that employer. One file per employer, containing every field that employer asked for.
+
+**Language:** draft the fields in the language of the variant being submitted (the bundle manifest's submitted, or primary, language — `/apply` Step 2), not in the CV's default language. The portal box sits next to the documents the employer receives, so a Korean submission with an English self-introduction reads as a copy-paste accident. When the submission language is still unconfirmed, ask before drafting rather than picking: this is text the candidate pastes once. If the user wants the fields in a second language too, that is another file, named with the same `_<lang>` suffix the documents use.
 
 Include:
 - A header naming the employer and the roles it covers

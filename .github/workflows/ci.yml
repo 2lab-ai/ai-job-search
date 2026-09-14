@@ -169,6 +169,92 @@ jobs:
         run: |
           python3 tools/verify_pdf.py cv/main_example.pdf --min-chars 100
           python3 tools/verify_pdf.py cover_letters/cover_example.pdf --min-chars 100
+      # ---- Opt-in Korean (Hangul) rendering -----------------------------
+      # The stock templates are Latin-only: cover.cls selects Lato/Raleway
+      # through hardcoded \fontspec switches and the CV is moderncv with no
+      # Unicode font setup, so a Korean document compiles with exit 0 while
+      # every Hangul character is dropped from the page and from the text
+      # layer. templates/korean/korean-fonts.sty is the opt-in fix, and
+      # these steps are the only place its rendering can be proven. They
+      # compile the synthetic fixtures under tests/fixtures/ with the exact
+      # commands 05-cv-templates.md and 06-cover-letter-templates.md
+      # document, so the guides and CI cannot drift apart.
+      - name: Install Korean TeX support (Korean fixtures only)
+        # CI-only, exactly like the fontawesome5/pzdr font packages above -
+        # SETUP.md is unchanged and English documents need none of this. The
+        # apt leg ships no Korean TeX at all; texlive:latest is scheme-full
+        # and already has it, so the probe keeps that leg from reinstalling.
+        run: |
+          if kpsewhich kotex.sty >/dev/null && kpsewhich UnBatang.ttf >/dev/null; then
+            echo "ko.TeX and the Un fonts are already installed"
+          elif command -v apt-get >/dev/null; then
+            apt-get update
+            apt-get install -y --no-install-recommends texlive-lang-korean
+          else
+            tlmgr install collection-langkorean
+          fi
+          kpsewhich kotex.sty
+          kpsewhich UnBatang.ttf
+      - name: Compile Korean CV fixture (lualatex)
+        # Same engine and same working directory as the English CV: the
+        # Korean path must not fork the toolchain.
+        run: |
+          cd cv
+          TEXINPUTS=../templates/korean: lualatex -interaction=nonstopmode -halt-on-error ../tests/fixtures/korean-cv.tex
+          test -f korean-cv.pdf
+          if grep -q '^!' korean-cv.log; then
+            echo '::error::lualatex reported errors compiling tests/fixtures/korean-cv.tex'
+            grep -A3 '^!' korean-cv.log
+            exit 1
+          fi
+          # Tofu is the silent failure this feature exists to prevent: the
+          # engine logs the missing glyph and still exits 0.
+          if grep -q 'Missing character' korean-cv.log; then
+            echo '::error::Hangul glyphs are missing from the Korean CV - the Korean font did not apply'
+            grep 'Missing character' korean-cv.log | head -5
+            exit 1
+          fi
+      - name: Compile Korean cover letter fixture (xelatex)
+        # Compiled from cover_letters/ so cover.cls's relative OpenFonts
+        # paths resolve, exactly as for the English letter.
+        run: |
+          cd cover_letters
+          TEXINPUTS=../templates/korean: xelatex -interaction=nonstopmode -halt-on-error ../tests/fixtures/korean-cover.tex
+          test -f korean-cover.pdf
+          if grep -q '^!' korean-cover.log; then
+            echo '::error::xelatex reported errors compiling tests/fixtures/korean-cover.tex'
+            grep -A3 '^!' korean-cover.log
+            exit 1
+          fi
+          if grep -q 'Missing character' korean-cover.log; then
+            echo '::error::Hangul glyphs are missing from the Korean cover letter - the Korean font did not apply'
+            grep 'Missing character' korean-cover.log | head -5
+            exit 1
+          fi
+      - name: Assert Korean PDF structure and text layer
+        # A clean compile does not prove a glyph reached the page, and the
+        # text layer is what an ATS reads. Both fixtures mix Hangul with
+        # Latin, so both scripts are asserted on the same PDF. Unlike the
+        # English assertions below these run on forks too: the fixtures are
+        # framework files that /setup never personalizes.
+        run: |
+          python3 tools/verify_pdf.py cv/korean-cv.pdf \
+            --pages 2 \
+            --contains '김민준' \
+            --contains '핵심 역량' \
+            --contains '경력 사항' \
+            --contains '학력' \
+            --contains '추천인' \
+            --contains 'fixture@example.com' \
+            --contains 'Claude Code'
+          python3 tools/verify_pdf.py cover_letters/korean-cover.pdf \
+            --pages 1 \
+            --contains '김민준' \
+            --contains '채용 담당자님께' \
+            --contains '지원' \
+            --contains '감사합니다' \
+            --contains 'fixture@example.com' \
+            --contains 'Kind regards'
       - name: Assert stock PDF structure (upstream template only)
         if: github.repository == 'MadsLorentzen/ai-job-search'
         run: |

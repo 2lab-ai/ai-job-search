@@ -1,5 +1,5 @@
 ---
-framework_version: 1.0.2
+framework_version: 1.0.3
 ---
 
 # Cover Letter Templates and Tailoring Guide
@@ -156,9 +156,37 @@ Escape these wherever they appear in body text:
 - Tilde: `\textasciitilde{}`, caret: `\textasciicircum{}`, backslash: `\textbackslash{}`
 
 ### Non-English Cover Letters
-- Same template structure, just write content in the posting's language
+- Same template structure, just write content in **the language of the variant being written**. Language is a property of the document, not of the application: each variant governs its own body text, and the language the employer requires governs which variant is actually submitted - it does not narrow the set of variants produced
 - Adjust date format to local convention
 - Adjust closing to local convention (e.g. "Med venlig hilsen," for Danish)
+- Proper nouns keep their original script in every variant. An English letter for a Korean employer still carries the candidate's Korean name or the company's Korean legal name, so **that English variant needs `korean-fonts.sty` too** - without it those characters are dropped exactly as described below
+
+#### Korean letters: opt-in Hangul rendering (`korean-fonts.sty`)
+
+Korean is the exception to "just write the content", and the exception fails **silently**. `cover.cls` picks its fonts with hardcoded `\fontspec` switches - Lato for the name, Raleway for every body command including the bullet wrapper above - and neither font has a single Hangul glyph. A Korean letter compiles with exit 0 while the Hangul is dropped from the page and from the PDF text layer.
+
+Add one line after `\documentclass[]{cover}` (the class's own font setup has to come first) and change nothing else - the `\lettercontent{}` structure and the Raleway-wrapped `itemize` block stay exactly as documented above:
+
+```latex
+\documentclass[]{cover}
+\usepackage{korean-fonts}
+```
+
+The file is `templates/korean/korean-fonts.sty`, deliberately not installed into your TeX tree, so point `TEXINPUTS` at it. **Stay on xelatex**, and keep compiling from `cover_letters/` so the class's relative `OpenFonts` paths still resolve:
+
+```bash
+cd cover_letters && TEXINPUTS=../templates/korean: xelatex -interaction=nonstopmode cover_<company>_<role>.tex
+```
+
+(Windows/MiKTeX: `set TEXINPUTS=../templates/korean;` with a semicolon.) The package routes Hangul onto a Korean font through ko.TeX, which switches font per character class rather than per font command - that is what makes it survive the class's hardcoded `\fontspec` blocks, so Latin text in the same paragraph still renders in Lato/Raleway. A missing engine, a missing ko.TeX (`sudo apt install texlive-lang-korean`, or `tlmgr install collection-langkorean`) and a missing font each stop the compile with a named error instead of producing blank boxes.
+
+Korean conventions for the remaining fields:
+
+- **Date:** write it out instead of relying on `\today`, which stays English - `\currentdate{2026년 1월 2일}`
+- **Salutation:** `채용 담당자님께,` when no name is known, `홍길동 팀장님께,` with a name and title
+- **Closing:** `감사합니다.` in `\closing{}`, with the Korean name in `\signature{}`
+
+Verify as usual, plus: grep the log for `Missing character` (the engine reports an unrenderable glyph and still exits 0), and confirm the Hangul comes back out of the text layer with `python tools/verify_pdf.py cover_letters/cover_<company>_<role>.pdf --pages 1 --contains '채용 담당자님께'`. `tests/fixtures/korean-cover.tex` is the compiled reference - a synthetic 1-page Korean letter CI compiles on every push. Copy its structure, never its content.
 
 ## Checklist Before Finalizing
 - [ ] No em-dashes (use commas or periods instead)
@@ -169,7 +197,7 @@ Escape these wherever they appear in body text:
 - [ ] Company name and role are correct throughout
 - [ ] Date is current
 - [ ] Fits on one page
-- [ ] Language matches the job posting language
+- [ ] Language matches this variant throughout (body, date, salutation, closing), and the language the employer requires is among the variants produced language
 - [ ] Salutation is appropriate (named person if possible)
 - [ ] Headline is engaging and specific, not generic
 

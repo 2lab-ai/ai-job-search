@@ -523,6 +523,64 @@ class RankBatchLimitSpec(unittest.TestCase):
         self.assertIn("re-run `/rank` to continue", report)
 
 
+class RequestLocaleSpec(unittest.TestCase):
+    """`/rank --request-language <lang> [--market <code>]` (Korean-first runs).
+
+    Kept to the four invariants a prose drift would actually break: the flags
+    are documented, the preference is applied where it changes the batch
+    (before `--limit`), the new posting facts are persisted, and the request
+    language is never read as a claim about the candidate's proficiency.
+    """
+
+    def setUp(self):
+        self.sections = _sections(COMMAND.read_text(encoding="utf-8"))
+
+    def test_step0_documents_the_locale_flags(self):
+        step0 = self.sections.get("Step 0: Parse Input", "")
+        self.assertIn("--request-language", step0)
+        self.assertIn("--market", step0)
+
+    def test_step0_defaults_the_locale_to_the_language_the_user_asked_in(self):
+        """The user should not have to ask twice: a request written in Korean
+        is a Korean-market run with no flag. Requiring the flag is what made
+        Korean-first behaviour opt-in when it should be the default."""
+        step0 = self.sections.get("Step 0: Parse Input", "")
+        self.assertRegex(
+            step0,
+            r"(?i)language (of|the user)[^.]{0,60}(message|request|asked in)",
+            "Step 0 must derive the default locale from the user's own message language",
+        )
+        self.assertIn("일자리 찾아줘", step0, "the default needs a worked example, or it reads as theory")
+        self.assertIn(
+            "한국어로 설명하고 미국 일자리",
+            step0,
+            "and the counter-example: an explicit market beats the message language, "
+            "while the reply stays in the user's language",
+        )
+
+    def test_step1_applies_the_preference_before_the_limit(self):
+        step1 = self.sections.get("Step 1: Load State", "")
+        self.assertIn("--request-language", step1)
+        self.assertRegex(
+            step1,
+            r"before[^.]{0,60}`--limit`",
+            "ordering after the limit would let the limit pick the batch",
+        )
+
+    def test_step4_persists_the_posting_language_and_verified_place(self):
+        step4 = self.sections.get("Step 4: Update State", "")
+        for field in ('"posting_language"', '"market"', '"location_verified"'):
+            self.assertIn(field, step4, f"Step 4 must persist {field}")
+
+    def test_the_request_language_is_never_a_proficiency_claim(self):
+        text = COMMAND.read_text(encoding="utf-8")
+        self.assertRegex(
+            text,
+            r"(?i)never infer[^.]{0,80}proficiency",
+            "asking for Korean postings says nothing about the candidate's Korean",
+        )
+
+
 class RankStateToolSpec(unittest.TestCase):
     """Guards for routing Step 1/3/4 through tools/rank_state.py (#395).
 

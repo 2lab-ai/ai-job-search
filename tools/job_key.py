@@ -29,6 +29,24 @@ no usable key half at all - "securion_" was a real entry, and it would have
 collided with every future non-Latin posting from that company. Those fall back
 to the portal's numeric id from the URL.
 
+The same hole was open on the company half, and it collided silently: both
+make_key("카카오", "개발자", <url with id 123456>) and make_key("네이버",
+"개발자", <same id>) produced "unknown-company_123456" - two employers, one
+entry. A company (or title) that slugifies to nothing now falls back to a hash
+of its NFC-normalized original text, so distinct Korean employers get distinct
+keys and the same posting keys identically whether the portal shipped composed
+or decomposed Hangul.
+
+Mixed script is the same failure with a disguise: "회사A" slugifies to "a", not
+to "", so the empty-slug fallback never fired and "회사A" and "다른A" keyed
+identically again. Whenever transliteration drops non-Latin characters, the
+slug keeps its readable Latin remnant *and* carries a hash of the original -
+"a-9f3c1d". The check is by script, not by ASCII-ness, so Latin letters that
+already transliterate (ø, ß, é -> "sborg", "strae", "cafe") are untouched and
+existing Danish and German keys keep matching. The key itself stays ASCII on purpose: `/apply` and
+`/outcome` derive an archive folder stem from it, and that contract is
+unchanged. Latin keys are byte-for-byte what they were.
+
 Usage:
   python3 tools/job_key.py --company "Acme Corp" --title "SOC Analyst (L2)"
   python3 tools/job_key.py --audit job_scraper/seen_jobs.json
@@ -44,6 +62,9 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from search_locale import fold_text  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "job_scraper" / "seen_jobs.json"
@@ -82,20 +103,79 @@ def _cap(slug: str, limit: int) -> str:
     return f"{slug[:limit].rstrip('-')}-{digest}"
 
 
+def has_lost_differentiator(text) -> bool:
+    """True when slugifying `text` throws away non-Latin characters.
+
+    An empty slug is the obvious case; this is the one that hid behind a
+    surviving Latin remnant: "회사A" slugifies to "a", not "", so the
+    empty-slug fallback never fired and "회사A" and "다른A" keyed identically.
+
+    The test is *script*, not ASCII-ness: ø, ß and é are Latin letters that
+    already transliterate ("sborg", "strae", "cafe"), and treating them as lost
+    would change the key of every existing Danish and German entry.
+
+    Normalized NFKC, to match the compatibility folding the slug already does.
+    `slugify` runs NFKD, so ＮＨＮ is already "NHN" and Ⅲ is already "III" -
+    nothing lost - but testing the NFC form saw characters named FULLWIDTH… and
+    ROMAN NUMERAL…, judged them non-Latin, and keyed one employer two ways
+    depending on which form the portal emitted. NFKC keeps the cases that *are*
+    differentiators: ㈜ expands to (주), still Hangul, still hashed.
+    """
+    for ch in unicodedata.normalize("NFKC", str(text or "")):
+        if not ch.isalnum() or ch.isascii():
+            continue
+        name = unicodedata.name(ch, "")
+        if not name.startswith("LATIN") and not name.startswith("DIGIT"):
+            return True
+    return False
+
+
+def _differentiate(slug: str, text: str, limit: int) -> str:
+    """Re-attach, as a hash, what the ASCII slug could not carry.
+
+    The hash covers the *full* original text, so it also subsumes `_cap`'s own
+    truncation hash - a long mixed-script title needs one disambiguator, not
+    two - and it is taken over the folded (NFKC + casefolded) form, so the
+    composed and decomposed spellings of one name produce one key.
+    """
+    if not slug or not has_lost_differentiator(text):
+        return slug
+    digest = hashlib.sha1(fold_text(text).encode("utf-8")).hexdigest()[:HASH_LEN]
+    return f"{slug[: max(1, limit - HASH_LEN - 1)].rstrip('-')}-{digest}"
+
+
+def _hashed(text: str, prefix: str) -> str:
+    """An ASCII stand-in for text no slug survives, distinct per text.
+
+    Hashing the folded (NFKC + casefolded) form is what makes the key stable:
+    the same Korean company name arrives composed from one portal and
+    decomposed from the next, and those two byte strings must not become two
+    entries for one employer.
+    """
+    digest = hashlib.sha1(fold_text(text).encode("utf-8")).hexdigest()[:HASH_LEN]
+    return f"{prefix}-{digest}"
+
+
 def make_key(company: str, title: str, url: str = "") -> str:
     """The canonical seen_jobs.json key for one posting."""
-    company_slug = _cap(slugify(company), COMPANY_MAX) or "unknown-company"
-    title_slug = _cap(slugify(title), TITLE_MAX)
+    company_slug = _differentiate(_cap(slugify(company), COMPANY_MAX), company, COMPANY_MAX)
+    if not company_slug:
+        # No Latin characters in the company name. "unknown-company" is only
+        # honest when there is no name at all - using it for a Korean employer
+        # merges every Korean employer into one key.
+        company_slug = _hashed(company, "company") if fold_text(company) else "unknown-company"
+    title_slug = _differentiate(_cap(slugify(title), TITLE_MAX), title, TITLE_MAX)
     if not title_slug:
         # No Latin characters in the title. The portal's own numeric id is the
         # only stable handle left; never emit a bare "company_" prefix.
         match = _JOB_ID.search(url or "")
         if match:
             title_slug = match.group(1)
+        elif fold_text(title):
+            title_slug = _hashed(title, "title")
         else:
-            basis = slugify(unicodedata.normalize("NFKD", str(title or url or "")))
             digest = hashlib.sha1((str(title) + str(url)).encode("utf-8")).hexdigest()[:HASH_LEN]
-            title_slug = basis or f"untitled-{digest}"
+            title_slug = f"untitled-{digest}"
     return f"{company_slug}_{title_slug}"
 
 

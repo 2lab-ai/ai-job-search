@@ -19,6 +19,9 @@ documents/
 │       ├── job_posting.md       # The original job posting (written by /apply, or pasted)
 │       ├── cover_letter.tex     # The cover letter you submitted
 │       ├── cv_draft.tex         # The CV variant you submitted
+│       ├── cv_draft_<lang>.tex  # Every language variant that was drafted (bundle only)
+│       ├── cover_letter_<lang>.tex
+│       ├── document_bundle.json # Which variants exist, and which one was submitted
 │       └── outcome.md           # Result + notes (fill in after hearing back)
 └── README.md                    # This file
 ```
@@ -115,6 +118,8 @@ A record of past job applications. Each subfolder is one application.
 
 You can maintain these folders by hand, or let the **`/outcome`** command do it: it records progress updates and final results conversationally, archives the submitted drafts and, if `/apply` has not already written it, the posting text, keeps `outcome.md` in the format below, and updates `job_search_tracker.csv` in the same step.
 
+An application drafted in more than one language also carries a `document_bundle.json` manifest and one `cv_draft_<lang>` / `cover_letter_<lang>` pair per language; see **Files within each application folder** below.
+
 **Subfolder naming:** `<company>_<role>` — lowercase, underscores for spaces.
 Every character that is not a letter, digit or underscore is dropped (so `Novo Nordisk A/S`
 becomes `novo_nordisk_as`), runs of underscores collapse to one, and leading and trailing
@@ -137,6 +142,10 @@ applications/
 **`cover_letter.tex`** — The cover letter you actually submitted. Used to extract writing style patterns and structure for `06-cover-letter-templates.md`.
 
 **`cv_draft.tex`** — The CV variant you submitted. Used to extract profile statement styles for `05-cv-templates.md`.
+
+**`document_bundle.json`** — Written by `/apply` when an application is drafted in more than one language (English plus the language you asked in). It records each variant's exact filename, which language is *primary* (the one the tracker's `cv_file` column points at), and which one you actually submitted once you say so. `/outcome` and `/interview` read it instead of guessing or searching, so the wrong role's or the wrong language's document can never be recorded as what the employer read. It is data, not a document: nothing but these commands writes it, and re-running `/apply`'s `plan` step rewrites it rather than hand-editing paths.
+
+**`cv_draft_<lang>.tex` / `cover_letter_<lang>.tex`** — every language variant that was drafted, archived so the record is complete. `cv_draft.tex` and `cover_letter.tex` above keep their original meaning: **the variant that was submitted**, under the names `/setup` and every older reader already know. Nothing in this folder is ever overwritten by a later run - what is here is what was sent.
 
 **`outcome.md`** — Fill this in after the application resolves. Format:
 
@@ -162,7 +171,7 @@ Any signal about what they valued or didn't?
 
 `in_progress` marks an application that is still open (used by `/outcome` for interview-stage updates before a resolution). `/setup`'s calibration draws conclusions only from applications with a final status.
 
-Application folders may also contain **`interview_prep_<stage>.md`** files written by `/interview` (one per interview stage, kept as history). `/setup` reads only the four files named above and ignores these.
+Application folders may also contain **`interview_prep_<stage>.md`** files written by `/interview` (one per interview stage, kept as history). `/setup` reads only the four files named above and ignores these, along with `document_bundle.json` and the `_<lang>` variants.
 
 **What `/setup` learns from outcome.md:**
 - Which role types and companies have led to interviews (signals strong fit areas)
