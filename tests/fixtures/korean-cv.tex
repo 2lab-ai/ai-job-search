@@ -1,0 +1,231 @@
+%% SYNTHETIC TEST FIXTURE - not a real CV, not a real person, not a real
+%% application record. "김민준" is invented, the employers are invented, and
+%% fixture@example.com is a reserved example-domain address (RFC 2606).
+%% Never copy this file into cv/ as the basis of a real application.
+%%
+%% What it is for: proving that the opt-in Korean support actually renders.
+%% It is the stock moderncv/banking preamble plus one line -
+%% \usepackage{korean-fonts} - with every heading and every body string in
+%% Hangul, so a font regression shows up as a failed compile or as Hangul
+%% missing from the PDF text layer instead of as tofu nobody notices.
+%%
+%% Compile exactly the way a real Korean CV is compiled (from cv/, on the
+%% same engine as the English CV):
+%%
+%%   cd cv && TEXINPUTS=../templates/korean: lualatex -interaction=nonstopmode ../tests/fixtures/korean-cv.tex
+%%
+%% Must come out at exactly 2 pages, like every CV from this template.
+
+\documentclass[11pt,a4paper,sans]{moderncv}
+\moderncvstyle{banking}
+\moderncvcolor{blue}
+
+\renewcommand*{\namefont}{\fontsize{34}{36}\bfseries\upshape}
+\colorlet{firstnamecolor}{color1}
+\colorlet{lastnamecolor}{color1}
+\colorlet{namecolor}{color1}
+\renewcommand*{\sectionstyle}[1]{{\sectionfont\color{color1}#1}}
+
+% The one line that turns a Latin-only template into a Korean-capable one.
+\usepackage{korean-fonts}
+
+\AtEndPreamble{\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,
+    urlcolor=blue,
+    pdftitle={김민준 - 이력서 (테스트 픽스처)},
+    pdfpagemode=UseNone,
+}}
+\usepackage[scale=0.80]{geometry}
+
+% 개인 정보 (전부 가상)
+\name{김민준}{}
+\address{서울특별시 강남구 테헤란로 123}{}{}
+\phone[mobile]{+82 10 0000 0000}
+\email{fixture@example.com}
+\extrainfo{\href{https://example.com/fixture}{링크드인}, \href{https://example.com/fixture}{깃허브}}
+
+\begin{document}
+
+\makecvtitle
+
+% ============================================================
+%     프로필 / PROFILE
+% ============================================================
+
+\vspace{6pt}
+\small{데이터 분석과 머신러닝 파이프라인 구축을 담당해 온 가상의 지원자입니다. 이 문서는 한글 렌더링을 검증하기 위한 테스트 픽스처이며, 실제 경력을 담고 있지 않습니다. 한글과 English가 한 문장 안에서 섞일 때의 줄바꿈과 자간을 함께 확인합니다.}
+
+% ============================================================
+%     핵심 역량
+% ============================================================
+
+\section{핵심 역량}
+\vspace{1pt}
+\begin{itemize}
+
+\item \textbf{데이터 엔지니어링}: 수집부터 적재까지의 배치 파이프라인 설계 및 운영 (Python, SQL).
+
+\item \textbf{머신러닝}: 예측 모델 학습과 평가, 실험 관리 및 재현 가능한 학습 환경 구성.
+
+\item \textbf{서비스 운영}: 모델 배포 후 지표 모니터링과 장애 대응 절차 수립.
+
+\item \textbf{협업 도구}: Claude Code를 활용한 에이전트 기반 개발 및 코드 리뷰 자동화.
+
+\item \textbf{문서화}: 한국어와 영어 양쪽으로 기술 문서를 작성하고 유지 관리.
+
+\item \textbf{통계 분석}: A/B 테스트 설계와 결과 해석, 표본 크기 산정.
+
+\end{itemize}
+
+% ============================================================
+%     경력 사항
+% ============================================================
+
+\section{경력 사항}
+\vspace{3pt}
+\begin{itemize}
+
+\item{\cventry{2022-현재}{데이터 사이언티스트}{가상기술 주식회사}{서울, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {수요 예측 모델을 개발해 재고 회전율 지표를 정기적으로 보고했습니다.}
+    \item {일 단위 배치 파이프라인을 재설계하고 실패 알림 체계를 도입했습니다.}
+    \item {분석 결과를 사내 대시보드로 제공해 비개발 부서의 의사 결정을 지원했습니다.}
+    \item {신규 입사자를 위한 온보딩 문서를 한국어와 영어로 정리했습니다.}
+\end{itemize}}}
+
+\vspace{3pt}
+
+\item{\cventry{2019-2022}{데이터 분석가}{예시소프트 주식회사}{부산, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {고객 이탈 분석을 수행하고 세그먼트별 리포트를 월간으로 발행했습니다.}
+    \item {수작업 집계를 SQL 기반 자동화로 전환해 보고 주기를 단축했습니다.}
+    \item {A/B 테스트 설계와 결과 해석을 담당했습니다.}
+    \item {영업 부서와 함께 리포트 지표 정의를 표준화했습니다.}
+    \item {신규 데이터 소스를 검토하고 적재 우선순위를 제안했습니다.}
+\end{itemize}}}
+
+\vspace{3pt}
+
+\item{\cventry{2017-2019}{연구 보조원}{가상대학교 연구실}{대전, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {센서 데이터 전처리 도구를 작성하고 실험 데이터를 관리했습니다.}
+    \item {학회 발표 자료와 논문 초고 작성을 지원했습니다.}
+\end{itemize}}}
+
+\end{itemize}
+
+% ============================================================
+%     학력
+% ============================================================
+
+\section{학력}
+\vspace{1pt}
+\begin{itemize}
+
+\item{\cventry{2015-2017}{공학 석사, 산업공학}{가상대학교}{대전, 대한민국}{}{\vspace{1pt}
+논문: ``수요 예측을 위한 시계열 모델 비교.'' 시계열 예측과 실험 설계를 중심으로 연구했습니다.
+}}
+
+\vspace{3pt}
+
+\item{\cventry{2011-2015}{공학 학사, 산업공학}{가상대학교}{대전, 대한민국}{}{\vspace{1pt}
+통계학, 최적화, 데이터베이스 관련 과목을 수강했습니다.
+}}
+
+\end{itemize}
+
+% ============================================================
+%     주요 프로젝트
+% ============================================================
+
+\section{주요 프로젝트}
+\vspace{1pt}
+\begin{itemize}
+
+\item{\cventry{2024}{수요 예측 파이프라인 재설계}{가상기술 주식회사}{서울, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {일 단위 적재 작업을 모듈 단위로 분리하고 재실행이 가능한 구조로 바꿨습니다.}
+    \item {실패 알림과 재처리 절차를 문서화해 담당자가 바뀌어도 운영이 이어지도록 했습니다.}
+\end{itemize}}}
+
+\vspace{3pt}
+
+\item{\cventry{2023}{사내 대시보드 통합}{가상기술 주식회사}{서울, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {부서별로 흩어져 있던 지표 정의를 하나의 기준 문서로 정리했습니다.}
+    \item {비개발 부서가 직접 조회할 수 있도록 질의 템플릿과 사용 안내를 제공했습니다.}
+\end{itemize}}}
+
+\vspace{3pt}
+
+\item{\cventry{2021}{이탈 예측 모델 실험 환경 구축}{예시소프트 주식회사}{부산, 대한민국}{}{\vspace{1pt}
+\begin{itemize}
+    \item {학습 데이터와 실험 설정을 버전으로 관리해 결과를 재현할 수 있게 했습니다.}
+    \item {실험 결과를 주간 회의용 요약으로 자동 정리했습니다. Claude Code로 보고서 초안을 작성했습니다.}
+\end{itemize}}}
+
+\end{itemize}
+
+% ============================================================
+%     연구 실적
+% ============================================================
+
+\section{연구 실적}
+\vspace{1pt}
+\begin{itemize}
+\item {김민준, 이서연 (2018). 센서 시계열 결측치 보정 기법의 비교. 가상산업공학회 논문집.}
+\item {김민준, 박지훈, 이서연 (2018). 제조 공정 데이터의 이상 탐지 사례 연구. 가상데이터학회 학술대회.}
+\item {김민준 (2017). 수요 예측을 위한 시계열 모델 비교. 가상대학교 석사 학위 논문.}
+\item {이서연, 김민준 (2016). 설비 가동 로그의 특징 추출 방법. 가상산업공학회 춘계학술대회.}
+\end{itemize}
+
+% ============================================================
+%     언어
+% ============================================================
+
+\section{언어}
+\vspace{1pt}
+\begin{itemize}
+\item {한국어 (모국어), 영어 (업무 가능 수준), 일본어 (초급).}
+\item {영어로 기술 문서 작성과 회의 진행이 가능하며, 일본어는 문서 독해 수준입니다.}
+\end{itemize}
+
+% ============================================================
+%     자격 및 교육
+% ============================================================
+
+\section{자격 및 교육}
+\vspace{1pt}
+\begin{itemize}
+\item {데이터 분석 준전문가 (가상자격원, 2021).}
+\item {사내 머신러닝 운영 과정 40시간 수료 (2023).}
+\item {클라우드 데이터 엔지니어링 기초 과정 24시간 수료 (2022).}
+\item {통계 기반 실험 설계 워크숍 16시간 수료 (2020).}
+\end{itemize}
+
+% ============================================================
+%     수상 및 활동
+% ============================================================
+
+\section{수상 및 활동}
+\vspace{1pt}
+\begin{itemize}
+\item{\textbf{사내 데이터 해커톤 우수상} -- 가상기술 주식회사 (2023).}
+\item{\textbf{학술대회 포스터 발표} -- 가상산업공학회 추계학술대회 (2018).}
+\item{\textbf{사내 기술 세미나 발표} -- 시계열 예측 모델 운영 사례 (2022).}
+\item{\textbf{교내 데이터 분석 경진대회 장려상} -- 가상대학교 (2016).}
+\end{itemize}
+
+% ============================================================
+%     추천인
+% ============================================================
+
+\section{추천인}
+\vspace{1pt}
+\begin{itemize}
+\item{요청 시 제공해 드립니다. 이전 직장의 팀장과 대학원 지도 교수의 연락처를 전달할 수 있으며, 연락 전에 미리 알려 주시면 감사하겠습니다.}
+\end{itemize}
+
+\end{document}

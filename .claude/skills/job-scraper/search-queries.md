@@ -8,6 +8,8 @@
 
 The `site:` query templates in this file are the **WebSearch fallback** — for portals without a CLI, company career pages, or when a CLI fails.
 
+**Per-run language and market (`--request-language` / `--market`).** A run can name the language to search in and the market to search — "/scrape korean jobs", `/scrape --request-language ko`, `/scrape --market KR`. That is a statement about *which postings to look for*, **not** about the user: it never edits the Languages table below, never satisfies the Language Gate, and is never read as proficiency in that language. An explicit `--market` beats the market implied by the language (a Korean speaker can search Denmark). When a run names a locale, take each category's queries in that language first and run that market's portals first (Step 1b); a run that names nothing behaves exactly as it always has. Korean runs: role keywords, region terms and portal entry points are in `korean-portals.md` (this directory).
+
 **Language scope:** write every query category in every language listed in your CLAUDE.md Languages table (typically 1-2, sometimes more). A posting requiring a language you have *not* declared, as a job condition, is excluded before scoring; a posting requiring a *higher level* than you declared in a language you *do* work in is flagged for your own judgment, not excluded — see `04-job-evaluation.md`'s Language Gate, the single source of truth for this rule. Translate each category's keywords rather than machine-translating word-for-word (e.g. "Frontend Developer" -> "Desarrollador Frontend", not a literal word-for-word translation) if you work in more than one language.
 
 ## Search Sites
@@ -68,6 +70,8 @@ site:[YOUR_JOB_BOARD] "technical consultant" [YOUR_DOMAIN] [YOUR_CITY]
 ```
 
 ## Location Filter
+
+A run's `--market` sets which market to *search*; this filter still decides which results are acceptable to *you*. They are separate questions, and this one is not relaxed by a locale: a Seoul posting on a `--market KR` run is still filtered against the areas below (and against the relocation rule in `SKILL.md`'s Important Rules). Read a posting's stated place, not the portal's domain - `kr.linkedin.com` lists jobs worldwide and Korean boards advertise overseas roles.
 
 When evaluating results, verify the job location is within reasonable commute distance from your home. Define acceptable areas:
 - [YOUR_CITY] and surrounding areas

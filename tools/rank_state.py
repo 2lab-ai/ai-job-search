@@ -27,10 +27,19 @@ alone, `--all` making a retired entry revivable).
 Nothing here fetches a posting or judges a fit. Scoring stays with the model;
 this only removes the state file from the conversation.
 
+A run may also declare a search locale - `--request-language ko [--market KR]` -
+which regroups candidates and the final ranking so matching postings lead.
+That is a presentation and batching decision only: scores, fit bands and the
+location/language vetoes are computed exactly as before, and the request
+language is never read as a statement about the candidate (see
+tools/search_locale.py). Without those flags nothing reorders.
+
 Usage:
   python3 tools/rank_state.py candidates [--all] [--focus TEXT] [--limit N]
+                                         [--request-language ko] [--market KR]
   python3 tools/rank_state.py sweep [--write] [--exclude KEY,KEY]
   python3 tools/rank_state.py apply --results results.json [--dry-run]
+                                    [--request-language ko] [--market KR]
 
 Both subcommands print JSON on stdout. Exit 0 on success, 1 on a usage or
 state error, or on `apply` when any result could not be written.
@@ -44,6 +53,9 @@ import sys
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import search_locale  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "job_scraper" / "seen_jobs.json"
@@ -97,7 +109,10 @@ def parse_iso(value) -> date | None:
 
 
 def norm(text) -> str:
-    return re.sub(r"[^a-z0-9]", "", str(text or "").lower())
+    """Fold for matching. Delegated so it keeps every script: the old
+    `[^a-z0-9]` deletion erased Hangul, so every Korean company folded to ""
+    and one Korean row in the tracker excluded every Korean candidate."""
+    return search_locale.fold_text(text)
 
 
 def tracker_pairs(path: Path) -> set[tuple[str, str]]:
@@ -126,9 +141,23 @@ def entry_location_verdict(entry: dict) -> str | None:
     return legacy if legacy in ("PASS", "FAIL", "FLAG") else None
 
 
+def run_locale(args) -> dict:
+    """The locale this run asked for, or an inactive one. An unrecognized
+    value stops the run: silently falling back to "no locale" would print a
+    ranking that looks like it honoured the request and did not."""
+    try:
+        return search_locale.resolve_locale(
+            request_language=getattr(args, "request_language", None),
+            market=getattr(args, "market", None),
+        )
+    except ValueError as exc:
+        sys.exit(str(exc))
+
+
 def cmd_candidates(args) -> int:
     _, seen = load_state(args.state)
     excluded = tracker_pairs(args.tracker)
+    locale = run_locale(args)
 
     selected, skipped_tracker = [], 0
     for key, entry in seen.items():
@@ -142,26 +171,39 @@ def cmd_candidates(args) -> int:
             skipped_tracker += 1
             continue
         if args.focus:
-            haystack = " ".join(
-                [str(entry.get("title") or ""), str(entry.get("company") or "")]
-                + [str(b) for b in entry.get("strengths") or []]
-                + [str(b) for b in entry.get("gaps") or []]
-            ).lower()
-            if args.focus.lower() not in haystack:
+            # Folded, not just lowercased: `.lower()` leaves a composed and a
+            # decomposed 개발자 as two different strings, so a Korean focus term
+            # matched nothing on exactly the postings it named. Folding keeps
+            # substring semantics - it only drops case and separators, so
+            # "data scien" still matches "Data Scientist".
+            haystack = norm(
+                " ".join(
+                    [str(entry.get("title") or ""), str(entry.get("company") or "")]
+                    + [str(b) for b in entry.get("strengths") or []]
+                    + [str(b) for b in entry.get("gaps") or []]
+                )
+            )
+            if norm(args.focus) not in haystack:
                 continue
-        selected.append(
-            {
-                "key": key,
-                "title": entry.get("title"),
-                "company": entry.get("company"),
-                "url": entry.get("url"),
-                "portal": entry.get("portal"),
-                "deadline": entry.get("deadline"),
-                "posted_date": entry.get("posted_date"),
-            }
-        )
+        row = {
+            "key": key,
+            "title": entry.get("title"),
+            "company": entry.get("company"),
+            "url": entry.get("url"),
+            "portal": entry.get("portal"),
+            "deadline": entry.get("deadline"),
+            "posted_date": entry.get("posted_date"),
+        }
+        if search_locale.is_active(locale):
+            # The one field the locale adds to the projection: without it the
+            # reordering is invisible to whoever reads the batch.
+            row["preference_tier"] = search_locale.preference_tier(entry, locale)
+        selected.append(row)
 
     eligible = len(selected)
+    # Preference first, `--limit` second. The other order would let the limit
+    # pick the batch and the preference merely shuffle whatever it kept.
+    selected = search_locale.sort_by_preference(selected, locale, key=lambda r: seen[r["key"]])
     if args.limit > 0:
         selected = selected[: args.limit]
     print(
@@ -172,6 +214,7 @@ def cmd_candidates(args) -> int:
                 "deferred": max(0, eligible - len(selected)),
                 "excluded_by_tracker": skipped_tracker,
                 "total_entries": len(seen),
+                "locale": locale,
             },
             indent=2,
             ensure_ascii=False,
@@ -247,9 +290,33 @@ def band(score: int) -> str:
     return "Poor Fit"
 
 
+def record_posting_facts(entry: dict, result: dict) -> None:
+    """Persist what the posting itself said, apart from the Language Gate.
+
+    Three separate facts that used to be one field or none: the language the
+    posting is written in, the market it belongs to, and the place the scoring
+    agent actually read in it. None of them is the Gate's PASS/FAIL/FLAG
+    verdict about the *candidate*, and none of them is ever derived from the
+    run's `--request-language`: asking for Korean postings is a search
+    instruction, so **never infer the candidate's professional proficiency**
+    (or anything else about them) from it. Absence stays absence - a field the
+    agent did not return is left as it was, never guessed at and never blanked.
+    """
+    language = search_locale.normalize_language(result.get("posting_language") or result.get("language"))
+    if language:
+        entry["posting_language"] = language
+    market = search_locale.normalize_market(result.get("market"))
+    if market:
+        entry["market"] = market
+    place = result.get("location_verified")
+    if isinstance(place, str) and place.strip():
+        entry["location_verified"] = place.strip()
+
+
 def cmd_apply(args) -> int:
     doc, seen = load_state(args.state)
     today = args.today
+    locale = run_locale(args)
     try:
         results = json.loads(Path(args.results).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -293,6 +360,7 @@ def cmd_apply(args) -> int:
             entry.pop("language_note", None)
         else:
             entry["language_note"] = result.get("language_note")
+        record_posting_facts(entry, result)
         # Absence is not a correction: a fetch that degraded to a listing page
         # returns no deadline, and blanking a stored one would erase a real
         # date and make the entry immortal to rule 6's sweep.
@@ -316,6 +384,10 @@ def cmd_apply(args) -> int:
                 "location_verdict": entry["location_verdict"],
                 "language_gate": entry["language_gate"],
                 "language_note": entry.get("language_note"),
+                "posting_language": entry.get("posting_language"),
+                "market": entry.get("market"),
+                "location_verified": entry.get("location_verified"),
+                "preference_tier": search_locale.preference_tier(entry, locale),
                 "deadline": entry.get("deadline"),
                 "posted_date": entry.get("posted_date"),
                 "urgent": bool(parsed and today <= parsed <= today + timedelta(days=URGENT_DAYS)),
@@ -328,6 +400,11 @@ def cmd_apply(args) -> int:
         save_state(args.state, doc)
 
     rows.sort(key=lambda r: (r["score"], r["urgent"]), reverse=True)
+    # Preference regroups the already-scored rows: a matching posting leads a
+    # non-matching one even at a lower score, and inside each group the
+    # score order is untouched. Scores, bands and vetoes are never altered -
+    # this decides presentation order only.
+    rows = search_locale.sort_by_preference(rows, locale, key=lambda r: seen[r["key"]])
     veto = lambda r: r["location_verdict"] == "FAIL" or r["language_gate"] == "FAIL"
     vetoed = [r for r in rows if veto(r)]
     ranked = [r for r in rows if not veto(r)]
@@ -338,6 +415,7 @@ def cmd_apply(args) -> int:
                 "vetoed": vetoed,
                 "expired": expired,
                 "errors": errors,
+                "locale": locale,
                 "written": not args.dry_run,
             },
             indent=2,
@@ -355,7 +433,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
 
-    cand = sub.add_parser("candidates", parents=[common], help="select the entries to score")
+    locale_args = argparse.ArgumentParser(add_help=False)
+    locale_args.add_argument(
+        "--request-language",
+        help="prefer postings in this language this run (ko, Korean, 한국어, ...). "
+        "A search instruction only - never a claim about the candidate's proficiency",
+    )
+    locale_args.add_argument(
+        "--market", help="prefer this market (KR, Korea, ...); beats the market implied by --request-language"
+    )
+
+    cand = sub.add_parser("candidates", parents=[common, locale_args], help="select the entries to score")
     cand.add_argument("--tracker", type=Path, default=TRACKER)
     cand.add_argument("--all", action="store_true", help="include every non-skipped status")
     cand.add_argument("--focus", help="substring filter over title, company and stored fit notes")
@@ -367,7 +455,9 @@ def main() -> int:
     sweep.add_argument("--exclude", help="comma-separated keys re-scored this run")
     sweep.set_defaults(func=cmd_sweep)
 
-    app = sub.add_parser("apply", parents=[common], help="write scoring results back and print the ranking")
+    app = sub.add_parser(
+        "apply", parents=[common, locale_args], help="write scoring results back and print the ranking"
+    )
     app.add_argument("--results", required=True, help="JSON array from the scoring agents")
     app.add_argument("--dry-run", action="store_true")
     app.set_defaults(func=cmd_apply)

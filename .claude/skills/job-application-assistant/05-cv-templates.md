@@ -1,5 +1,5 @@
 ---
-framework_version: 1.4.3
+framework_version: 1.4.4
 ---
 
 # CV Templates and Tailoring Guide
@@ -117,6 +117,42 @@ Two related patterns are fine and should be kept:
 ### Section headings must match the CV's language (important)
 
 Section headings such as `\section{Core Competencies}`, `Professional Experience`, `Education`, `Languages`, `Publications`, `Honors and Awards`, `References` (and any others your template defines), plus the `Available upon request.` line under References, are all **literal English text baked into the template** - they do not translate themselves. Whenever the CV language (see `CV language` in the candidate profile) is not English, translate every one of these too, whatever they are, not just the body prose - a CV with a fully localized profile statement and bullets sitting under untouched English section headers reads as sloppy and inconsistent, and it's an easy thing to forget precisely because the prose translation is the obvious, visible part of the job. Worked example for Spanish: `Competencias Clave`, `Experiencia Profesional`, `Educaci\'on`, `Idiomas`, `Publicaciones`, `Distinciones y Premios`, `Referencias`, `Disponibles a solicitud.` The same rule applies for any other target language - check this explicitly during the verification pass.
+
+**Which language is "the CV's language"?** The language of the variant being written. When an application produces more than one variant, each variant's headings and prose follow that variant; `CV language:` in the candidate profile is the fallback for a CV written without an explicit language request. A selected variant language governs the document text only - the profile field is read, never rewritten. Language is also not script: proper nouns keep their original form, so an English CV for a Korean employer still carries a Korean name or company name and still needs the package below.
+
+### Korean CVs: opt-in Hangul rendering (`korean-fonts.sty`)
+
+Korean needs one extra step that Latin-script languages do not, and skipping it fails **silently**. The stock template has no Unicode font setup, so the CV is typeset in Latin Modern, which contains no Hangul glyph at all. A Korean CV therefore compiles with exit 0 and a normal-looking log while every Hangul character is dropped from the page *and* from the text layer an ATS reads - a blank CV around an intact English skeleton.
+
+Opt in with one line in the preamble. Nothing else in the template changes, and English CVs are untouched:
+
+```latex
+\usepackage{korean-fonts}
+```
+
+The file is `templates/korean/korean-fonts.sty`, deliberately not installed into your TeX tree, so point `TEXINPUTS` at it. **Stay on lualatex** - the Korean path must not fork the toolchain:
+
+```bash
+cd cv && TEXINPUTS=../templates/korean: lualatex -interaction=nonstopmode main_<company>_<role>.tex
+```
+
+The trailing `:` means "then the normal search path"; on Windows/MiKTeX write `set TEXINPUTS=../templates/korean;` with a semicolon. The package routes Hangul - and only Hangul - onto a Korean font through ko.TeX, so Latin text keeps the fonts and metrics of the English CV. It stops with a named error when the engine is pdflatex, when ko.TeX is missing (`sudo apt install texlive-lang-korean`, or `tlmgr install collection-langkorean`), or when the Korean font is missing; it never degrades quietly to blank boxes. To use a different font, define it before loading:
+
+```latex
+\def\koreanmainfont{Noto Serif CJK KR}
+\def\koreansansfont{Noto Sans CJK KR}
+\usepackage{korean-fonts}
+```
+
+**Translate the headings too** - the rule above applies to Korean like any other language. Worked example: `핵심 역량`, `경력 사항`, `학력`, `언어`, `연구 실적`, `수상 및 활동`, `추천인`, with the References line as `요청 시 제공해 드립니다.`
+
+**Verification additions for a Korean CV**, on top of the normal loop:
+
+- Grep the compile log for `Missing character`. The engine logs one line per glyph it could not render and still exits 0, so this is the only mechanical signal that the Korean font did not apply.
+- Confirm the Hangul actually comes back out of the text layer - "no `�` characters" is not the same check, because a dropped glyph leaves no replacement character behind. Assert a few strings you know are in the document: `python tools/verify_pdf.py cv/main_<company>_<role>.pdf --contains '핵심 역량'`.
+- Extractors can disagree on Korean (word-spacing and font-embedding differences make one reader return a phrase another misses). When they disagree, report the disagreement rather than claiming the CV is ATS-parseable on the strength of whichever one passed.
+
+`tests/fixtures/korean-cv.tex` is the compiled reference for all of this: a synthetic 2-page Korean CV built from this template, compiled by CI on every push. Copy its preamble; never copy its content into a real application.
 
 ## Section-by-Section Tailoring
 

@@ -79,6 +79,8 @@ Ask the user what happened, then classify:
 - `interview_only` - reached interviews but the process stalled or was abandoned without an explicit rejection
 
 Also collect, without interrogating - one or two open questions are enough:
+- **For a multi-language bundle: which language variant was actually submitted.** Ask only when `document_bundle.json` lists more than one language and does not already record a `submitted_language`. One line is enough ("Did you send the Korean or the English one?"). This is the fact Step 3 needs and the only person who has it is the user. The manifest's primary is a proposal (`confirmed` / `suggested` / `provisional`), never evidence that it was sent
+- **If they sent a mixed pair** (an English CV with a Korean cover letter, say), stop and say so: the archive records **one language for both** documents, so there is no honest way to write that down. `mark-submitted` refuses it and writes nothing. Report the limitation in the Step 6 summary and leave `submitted_language` unset rather than picking the half that sounds right
 - Dates for the stages reached
 - Any feedback received, verbatim where the user remembers it
 - What they'd do differently, and any signal about what the company valued (these feed `/setup`'s calibration and STAR-candidate mining, so concrete beats polished)
@@ -161,7 +163,35 @@ Wait for the user's explicit response before writing anything.
 
 Create or update `documents/applications/<company>_<role>/`. All content here is personal data - the folder is already gitignored (`documents/applications/**`), so nothing needs redacting.
 
-1. **`cv_draft.tex` and `cover_letter.tex`** - copy (never move) the submitted files. Locate them via the tracker row's `cv_file`/`cover_letter_file` columns; if those are empty, look for `cv/main_<company>_<role>.*` and `cover_letters/cover_<company>_<role>.*`, deriving `<company>_<role>` by the **Subfolder naming** rule in `documents/README.md`. **Never widen those globs to the company alone** - two roles at one company both match it, and the first hit wins silently. If a file already exists in the archive, leave it - the archived version is what was actually submitted. If nothing matches (application made outside `/apply`), skip with a note rather than widening the search: a sibling role's CV recorded as what you submitted is worse than no file at all.
+1. **`cv_draft.tex` and `cover_letter.tex`** - copy (never move) the submitted files. Resolve them in this order, stopping at the first that answers:
+
+   **a. The bundle manifest** - `documents/applications/<company>_<role>/document_bundle.json`, written by `/apply`. It lists every variant's exact path, so nothing is searched for:
+
+   ```bash
+   python3 tools/document_bundle.py archive-plan --stem "<company>_<role>"
+   ```
+
+   It prints a `copies` list of `source` -> `destination` pairs: **every** variant under a language-suffixed name (`cv_draft_<lang>.tex`, `cover_letter_<lang>.tex`), plus the submitted variant again under the legacy `cv_draft.tex` / `cover_letter.tex` names that `/setup` and every pre-bundle reader know. Copy exactly the entries whose `skip` is false, and report the skipped ones with their reason. Three reasons, and the third is the one that needs saying out loud:
+
+- `exists` — the archive already holds that exact file. Nothing to do; **nothing is ever overwritten**.
+- `missing-source` — the draft is gone from `cv/`. Nothing is substituted for it.
+- `exists-other-variant` — the archive holds a *different* file under that name, typically an earlier application's `cv_draft.tex` in another language. Leave it, and say so plainly in the Step 6 summary: the language-suffixed copy (`cv_draft_<lang>`) is the unambiguous record, and `resolve` reports `legacy_pair_matches_submitted: false` for exactly this case.
+
+   **Exit code 2 means `submitted_language_unknown`: ask the user which variant they sent** - the tool prints the candidates - then record it and re-run:
+
+   ```bash
+   python3 tools/document_bundle.py mark-submitted --stem "<company>_<role>" --language <lang>
+   ```
+
+   Record it only once the user confirms the application actually went out — this command runs on the turn they report that, which is why it lives here and not in `/apply`. The helper refuses a language whose documents are not on disk, and refuses a mixed pair.
+
+   Never pick for them, and never assume the primary language in the tracker row is what went out: generated is not submitted, and the archive is the record of what the employer read.
+
+   **b. The tracker row's `cv_file`/`cover_letter_file` columns** - one path each, for an application drafted before the bundle existed. Copy them to `cv_draft.tex` and `cover_letter.tex`.
+
+   **c. The pre-bundle glob** - when those columns are empty (a row added by hand, or by this command's own outside-the-workflow path), look for `cv/main_<company>_<role>.*` and `cover_letters/cover_<company>_<role>.*`, deriving `<company>_<role>` by the **Subfolder naming** rule in `documents/README.md`. **Never widen those globs to the company alone** - two roles at one company both match it, and the first hit wins silently.
+
+   If a file already exists in the archive, leave it - the archived version is what was actually submitted. If nothing matches (application made outside `/apply`), skip with a note rather than widening the search: a sibling role's CV recorded as what you submitted is worse than no file at all.
 2. **`job_posting.md`** - if it already exists, leave it. Otherwise try WebFetch on the tracker row's `source` URL and save the posting text, retrying a 403 with browser headers per `.claude/skills/job-application-assistant/09-web-research.md`. If the URL is dead (postings expire fast - this is exactly why the archive matters), ask the user to paste the posting, or write a stub noting the posting is unavailable. **Never reconstruct a posting from memory.**
 3. **`outcome.md`** - write or update it in exactly the format documented in `documents/README.md`, so `/setup` Path A parses it without special cases:
 
@@ -215,7 +245,7 @@ Summarize what was recorded:
 > **Outcome recorded for <Role> at <Company>.**
 >
 > - `documents/applications/<company>_<role>/outcome.md` - status: <status>, <what changed>
-> - Archived: <which of cv_draft.tex / cover_letter.tex / job_posting.md were copied or fetched, and which were skipped and why>
+> - Archived: <which of cv_draft.tex / cover_letter.tex / job_posting.md were copied or fetched, which language variants were copied alongside them, and which were skipped and why>
 > - Tracker: status → <new status>
 >
 > [Calibration suggestion from Step 5, if triggered]
@@ -233,7 +263,7 @@ If the recorded status is `hired`, congratulate the user warmly first - this is 
 ## Important Rules
 
 1. **Write data, don't interpret it.** The archive and tracker are the outputs; calibration belongs to `/setup`. This command never edits profile or framework files.
-2. **The archived version is the submitted version.** Existing files in the application folder are never overwritten by fresher drafts.
+2. **The archived version is the submitted version.** Existing files in the application folder are never overwritten by fresher drafts. With a multi-language bundle that also means the legacy `cv_draft.tex` / `cover_letter.tex` pair holds the variant the user says they sent - not the first one generated, and not the tracker's provisional primary.
 3. **Never fabricate.** A dead posting URL gets a user-pasted copy or an explicit "unavailable" stub, not a reconstruction. Feedback is recorded as the user reports it.
 4. **Stay schema-compatible.** `outcome.md` follows the format in `documents/README.md` exactly (`in_progress` is the one addition, for open applications); the tracker keeps its columns.
 5. **Idempotent updates.** Re-running on the same application appends new stages and notes; it never duplicates folders, rows, or history.

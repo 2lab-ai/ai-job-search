@@ -1,0 +1,76 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SYNTHETIC TEST FIXTURE - not a real cover letter, not a real person, not a
+%% real application record. "김민준" and "가상기술 주식회사" are invented and
+%% fixture@example.com is a reserved example-domain address (RFC 2606).
+%% Never copy this file into cover_letters/ as the basis of a real letter.
+%%
+%% What it is for: cover.cls picks its fonts with hardcoded \fontspec switches
+%% (cover.cls:30-31 and every command below :36), so it is the hard case for
+%% Korean - every macro here re-selects Lato or Raleway by hand, and neither
+%% has a Hangul glyph. This fixture puts Hangul in all of them: the name, the
+%% contact line, every \lettercontent paragraph, the Raleway-wrapped bullet
+%% list, the closing and the signature. Each block also keeps some Latin text,
+%% because mixed-script line breaking is its own failure mode.
+%%
+%% Compile exactly the way a real Korean cover letter is compiled (from
+%% cover_letters/, so the class's relative font paths resolve, on the same
+%% engine as the English letter):
+%%
+%%   cd cover_letters && TEXINPUTS=../templates/korean: xelatex -interaction=nonstopmode ../tests/fixtures/korean-cover.tex
+%%
+%% Must come out at exactly 1 page, like every letter from this template.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[]{cover}
+
+% The one line that turns a Latin-only template into a Korean-capable one.
+% It goes after \documentclass so ko.TeX sees the class's font setup.
+\usepackage{korean-fonts}
+
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhf{}
+
+\rfoot{Page \thepage \hspace{0pt}}
+\thispagestyle{empty}
+\renewcommand{\headrulewidth}{0pt}
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     이름 / TITLE NAME
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\namesection{}{\Huge{김민준}}{  \href{mailto:fixture@example.com}{fixture@example.com} | +82 10 0000 0000 | 서울특별시 강남구 |  \urlstyle{same}\href{https://example.com/fixture}{링크드인}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%     본문 / MAIN COVER LETTER CONTENT
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\currentdate{2026년 1월 2일}
+\lettercontent{채용 담당자님께,}
+
+\lettercontent{가상기술 주식회사의 데이터 사이언티스트 직무에 지원합니다. 이 문서는 한글 렌더링을 확인하기 위한 테스트 픽스처이며 실제 지원 서류가 아닙니다.}
+
+\lettercontent{아래는 직무 요건과 연결되는 가상의 경험입니다. 목록은 본문과 같은 Raleway 글꼴 블록 안에 있으며, 한글은 그 안에서도 한국어 글꼴로 표시되어야 합니다.}
+
+{\raggedright\fontspec[Path = OpenFonts/fonts/raleway/]{Raleway-Medium}\fontsize{11pt}{13pt}\selectfont
+\begin{itemize}
+    \item \textbf{수요 예측:} 예측 모델을 운영 환경에 배포하고 지표를 정기 보고했습니다.
+    \item \textbf{파이프라인:} 일 단위 배치 작업을 재설계하고 실패 알림을 도입했습니다.
+    \item \textbf{협업:} Claude Code로 코드 리뷰와 문서화를 자동화했습니다.
+\end{itemize}\par}
+\vspace{6pt}
+
+\lettercontent{귀사의 데이터 조직이 공개한 기술 블로그를 읽고 지원을 결정했다는 설정으로 작성된 문단입니다. 실제 회사에 대한 사실 주장은 포함되어 있지 않습니다.}
+
+\lettercontent{검토해 주셔서 감사합니다. 좋은 소식을 기다리겠습니다.}
+
+\begin{flushright}
+% 닫는 인사에 한국어와 영어를 함께 두어, 하나의 \fontspec 전환 안에서
+% 두 문자 체계가 같이 조판되는지 확인한다.
+\closing{감사합니다. Kind regards,}
+
+\signature{김민준}
+\end{flushright}
+\end{document}

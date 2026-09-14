@@ -23,11 +23,25 @@ v1 preps for a **specific application**. Generic no-target practice is out of sc
 
 1. **The archive** (started by `/apply`, maintained by `/outcome`): derive `<company>_<role>` by the **Subfolder naming** rule in `documents/README.md`, then use `documents/applications/<company>_<role>/`.
    - `job_posting.md` - the exact posting the user applied to
-   - `cv_draft.tex` and `cover_letter.tex` - what was actually submitted. **These are what the interviewer read**; every talking point must be consistent with their claims.
+   - `cv_draft.tex` and `cover_letter.tex` - the pair the archive keeps under the legacy names. For a single-language application these are what the interviewer read, and every talking point must be consistent with their claims. For a bundle, **verify them before trusting them** (next bullet): nothing in the archive is ever overwritten, so an earlier run may have left another language's documents under these names.
+   - `document_bundle.json` - present when `/apply` drafted a multi-language bundle. Resolve the variant the interviewer actually read rather than reading whichever file is at hand:
+
+     ```bash
+     python3 tools/document_bundle.py resolve --stem "<company>_<role>"
+     ```
+
+     It prints the submitted variant's exact paths, and one field decides which archive files you read:
+
+     - **`legacy_pair_matches_submitted: true`** - `cv_draft.tex` / `cover_letter.tex` are the submitted pair. Read those.
+     - **`legacy_pair_matches_submitted: false`** - they are **not** the submitted pair (a correction to another language, or an earlier application to the same role, is already sitting under those names). Read `archive.cv_variant` and `archive.cover_letter_variant` instead - the `_<lang>` copies of the language actually submitted - and say so in the prep pack: the archive holds documents under the legacy names that the interviewer did not read.
+     - **If those `_<lang>` files are absent**, stop and ask the user for the documents they actually sent. Do **not** fall back to the legacy pair the field just told you is wrong.
+
+     **Exit code 2 means the submission was never recorded: ask the user which language they sent, and never guess** - prepping off the English CV when the Korean one was submitted coaches claims the interviewer never read. Record the answer with `mark-submitted` (the command `/outcome` uses) so the next run does not ask again. Variants in other languages are context for a question about them, never the source of a talking point; the submitted variant is the only document the interviewer read.
    - `outcome.md` - the stage reached so far and any recorded feedback from earlier stages. Feedback from stage N is the highest-value input for stage N+1 prep.
 2. **Fallbacks** (the application may predate `/outcome`): posting via WebFetch on the tracker row's `source` URL, or ask the user to paste it; CV via `cv/main_<company>_<role>.*` and cover letter via `cover_letters/cover_<company>_<role>.*`, deriving `<company>_<role>` by the **Subfolder naming** rule in `documents/README.md`. **Never widen those globs to the company alone**: with two roles at one company it would prep you from the sibling role's documents. State plainly which context is missing rather than guessing - and suggest `/outcome <company>` to build the archive for next time.
-3. **Ask the user what this interview is** (skip anything `outcome.md` already records): stage (phone screen / technical / case / final round), date, format (phone, video, onsite), and who is interviewing (names and titles, if known).
-4. **Read the frameworks once** - do not re-read them in later steps:
+3. **Ask which language the interview will be held in** when the application had more than one variant - it may differ from the language of the documents that were submitted. Prepare the answers in the interview's language; the consistency brief still quotes the submitted variant.
+4. **Ask the user what this interview is** (skip anything `outcome.md` already records): stage (phone screen / technical / case / final round), date, format (phone, video, onsite), and who is interviewing (names and titles, if known).
+5. **Read the frameworks once** - do not re-read them in later steps:
    - `.claude/skills/job-application-assistant/07-interview-prep.md`
    - `.claude/skills/job-application-assistant/01-candidate-profile.md`
    - `.claude/skills/job-application-assistant/02-behavioral-profile.md`

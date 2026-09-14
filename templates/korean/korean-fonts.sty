@@ -1,0 +1,114 @@
+%% korean-fonts.sty - opt-in Hangul (Korean) rendering for the stock templates.
+%%
+%%     \usepackage{korean-fonts}
+%%
+%%     cd cv            && TEXINPUTS=../templates/korean: lualatex main_<company>_<role>.tex
+%%     cd cover_letters && TEXINPUTS=../templates/korean: xelatex  cover_<company>_<role>.tex
+%%
+%% The file is not installed into your TeX tree, hence TEXINPUTS; the trailing
+%% separator means "then the normal search path" (Windows/MiKTeX: `;`).
+%%
+%% Why: the stock templates are Latin-only - cover.cls selects Lato/Raleway
+%% through hardcoded \fontspec switches, the CV is moderncv with no Unicode
+%% font setup - and neither font has a single Hangul glyph, so a Korean
+%% document compiles with exit 0 while every Hangul character is dropped from
+%% the page and from the text layer an ATS reads. ko.TeX switches font per
+%% character class rather than per font command, which is what makes Hangul
+%% survive those hardcoded switches while Latin text keeps its own fonts.
+%%
+%% Missing engine, missing ko.TeX and missing font each stop the compile with a
+%% named error: the failure being prevented is invisible in a clean log.
+%% Full usage and verification steps: .claude/skills/job-application-assistant/
+%% 05-cv-templates.md and 06-cover-letter-templates.md.
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{korean-fonts}[2026/09/14 v1.0 Opt-in Hangul rendering for the stock CV and cover letter templates]
+
+% --- 1. Engine ---------------------------------------------------------------
+% pdflatex cannot load an OpenType/TrueType Korean font at all. Say so here
+% rather than letting fontspec fail with a less obvious message.
+\RequirePackage{iftex}
+\ifLuaTeX\else\ifXeTeX\else
+  \PackageError{korean-fonts}{%
+    Korean rendering needs lualatex or xelatex, but this is pdflatex%
+  }{%
+    Compile the CV with lualatex and the cover letter with xelatex - the same
+    engines the English templates already use:\MessageBreak
+    \space\space cd cv \&\& TEXINPUTS=../templates/korean: lualatex <file>.tex\MessageBreak
+    \space\space cd cover_letters \&\& TEXINPUTS=../templates/korean: xelatex <file>.tex%
+  }%
+  \endinput
+\fi\fi
+
+% --- 2. Fonts ----------------------------------------------------------------
+% The Un fonts ship inside the TeX tree next to ko.TeX itself, so a stock
+% install needs no font hunting. \providecommand means an earlier definition
+% wins, so any Korean font you have can be used instead:
+%
+%     \def\koreanmainfont{Noto Serif CJK KR}
+%     \def\koreanmainfontoptions{BoldFont={Noto Serif CJK KR Bold}}
+%     \usepackage{korean-fonts}
+\providecommand*{\koreanmainfont}{UnBatang.ttf}
+\providecommand*{\koreansansfont}{UnDotum.ttf}
+\providecommand*{\koreanmonofont}{UnDotum.ttf}
+\providecommand*{\koreanmainfontoptions}{BoldFont=UnBatangBold.ttf}
+\providecommand*{\koreansansfontoptions}{BoldFont=UnDotumBold.ttf}
+\providecommand*{\koreanmonofontoptions}{BoldFont=UnDotumBold.ttf}
+
+% --- 3. ko.TeX ---------------------------------------------------------------
+% Probed by hand so a missing installation reports how to fix it instead of
+% dropping into TeX's "File `kotex.sty' not found" prompt.
+\IfFileExists{kotex.sty}{}{%
+  \PackageError{korean-fonts}{%
+    The ko.TeX package (kotex) is not installed%
+  }{%
+    Install Korean TeX support, then compile again:\MessageBreak
+    \space\space Debian/Ubuntu: sudo apt install texlive-lang-korean\MessageBreak
+    \space\space TeX Live:\space\space\space\space tlmgr install collection-langkorean\MessageBreak
+    \space\space MiKTeX:\space\space\space\space\space\space install the `kotex' packages via the MiKTeX Console%
+  }%
+}
+\RequirePackage{kotex}
+
+% fontspec is what ko.TeX selects Hangul fonts through, and \IfFontExistsTF
+% below needs it loaded before the probe.
+\RequirePackage{fontspec}
+
+% --- 4. Font probe -----------------------------------------------------------
+% Without this, an uninstalled font is a warning buried in the log and a page
+% of blank boxes. \expandafter because the font names are macros.
+\newcommand*{\korean@requirefont}[2]{%
+  \expandafter\IfFontExistsTF\expandafter{#2}{}{%
+    \PackageError{korean-fonts}{%
+      Korean #1 font `#2' not found%
+    }{%
+      The font is normally installed with ko.TeX itself (the Un fonts ship in
+      the TeX tree).\MessageBreak
+      Install it:\MessageBreak
+      \space\space Debian/Ubuntu: sudo apt install texlive-lang-korean\MessageBreak
+      \space\space TeX Live:\space\space\space\space tlmgr install unfonts-core\MessageBreak
+      or point the package at a Korean font you do have, before loading it:\MessageBreak
+      \space\space \string\def\string\koreanmainfont{Noto Serif CJK KR}%
+    }%
+  }%
+}
+\korean@requirefont{main}{\koreanmainfont}
+\korean@requirefont{sans}{\koreansansfont}
+\korean@requirefont{mono}{\koreanmonofont}
+
+% --- 5. Hangul font setup ----------------------------------------------------
+% All three families, because the stock CV is moderncv's `sans` option and
+% cover.cls switches families by hand. This pins one known font per family
+% across both engines rather than inheriting each engine's own default, and it
+% is what gives the probe above something to check.
+%
+% The \edef builds the whole call before ko.TeX sees it, so the overridable
+% macros expand exactly once and fontspec never gets an unexpanded \csname.
+\newcommand*{\korean@setfont}[3]{%
+  \begingroup\edef\korean@tmp{\endgroup\noexpand#1[#2]{#3}}\korean@tmp
+}
+\korean@setfont{\setmainhangulfont}{\koreanmainfontoptions}{\koreanmainfont}
+\korean@setfont{\setsanshangulfont}{\koreansansfontoptions}{\koreansansfont}
+\korean@setfont{\setmonohangulfont}{\koreanmonofontoptions}{\koreanmonofont}
+
+\endinput

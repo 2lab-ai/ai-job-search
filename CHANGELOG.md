@@ -15,6 +15,20 @@ per-file diff commands.
 
 ### Added
 
+- **Korean job search, end to end** (`.claude/skills/job-scraper/`, `.claude/commands/`,
+  `.claude/skills/job-application-assistant/`, `tools/search_locale.py`,
+  `tools/document_bundle.py`, `templates/korean/`) - public Korean job portals in the
+  scraping workflow; a per-run locale preference that groups Korean-market postings
+  first in `/rank` and `/html-report` without touching any score, status or column;
+  **document bundles** that always draft English plus the language the user actually
+  asked in, each variant its own file (`_en`, `_ko`) recorded in a per-application
+  `document_bundle.json` manifest that `/outcome` and `/interview` read instead of
+  guessing; and opt-in Korean (Hangul) font support for the CV and cover-letter
+  templates. `/setup` is unchanged and no profile file is rewritten by any of it.
+  Nothing submits an application: the tracker's `cv_file`/`cover_letter_file` keep one
+  path each, a language the tool picked is labelled `suggested`/`provisional`, and the
+  submitted variant is recorded only after the user confirms the application was sent.
+
 - **`/expand` project and portfolio expansion** (`.claude/commands/expand.md`,
   `tests/test_expand_command.py`) - expands candidate discovery
   to technical projects from public GitHub repositories, extracting structured summaries
